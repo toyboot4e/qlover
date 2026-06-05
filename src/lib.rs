@@ -9,8 +9,8 @@
 
 pub mod dictionary;
 pub mod engine;
+pub mod input;
 pub mod output;
-pub mod protocol;
 pub mod stroke;
 pub mod translation;
 pub mod util;

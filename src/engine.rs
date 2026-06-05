@@ -4,7 +4,7 @@
 
 use std::sync::mpsc;
 
-use crate::{protocol::plover_hid, stroke::Stroke};
+use crate::{input::plover_hid, stroke::Stroke};
 
 pub struct Engine {
     /// Configuration for when we trigger translation.
