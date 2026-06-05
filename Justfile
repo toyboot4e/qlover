@@ -30,6 +30,16 @@ doctest *args:
 [private]
 alias dt := doctest
 
+[private]
+format *args:
+    cargo fmt {{args}}
+
+[private]
+alias fmt := format
+
+[private]
+alias f := format
+
 # runs the tests
 test *args:
     cargo test {{args}}
