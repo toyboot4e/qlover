@@ -9,7 +9,7 @@
 
 pub mod dictionary;
 pub mod engine;
-pub mod platform;
+pub mod output;
 pub mod protocol;
 pub mod stroke;
 pub mod translation;

@@ -14,7 +14,7 @@ use x11rb::{
     rust_connection::RustConnection,
 };
 
-use crate::platform::{self, KeyboardOutput};
+use crate::output::{self, KeyboardOutput};
 
 pub type Result<T> = std::result::Result<T, X11Error>;
 
@@ -145,12 +145,16 @@ impl X11Output {
             "backspace" => self.backspace_keycode,
             _ => return None,
         };
-        if kc == 0 { None } else { Some(kc) }
+        if kc == 0 {
+            None
+        } else {
+            Some(kc)
+        }
     }
 }
 
 impl KeyboardOutput for X11Output {
-    fn send_backspaces(&mut self, count: usize) -> platform::Result<()> {
+    fn send_backspaces(&mut self, count: usize) -> output::Result<()> {
         for _ in 0..count {
             self.tap_key(self.backspace_keycode, false)?;
         }
@@ -158,7 +162,7 @@ impl KeyboardOutput for X11Output {
         Ok(())
     }
 
-    fn send_string(&mut self, s: &str) -> platform::Result<()> {
+    fn send_string(&mut self, s: &str) -> output::Result<()> {
         for ch in s.chars() {
             if let Some(&(keycode, shift)) = self.char_to_keycode.get(&ch) {
                 self.tap_key(keycode, shift)?;
@@ -170,7 +174,7 @@ impl KeyboardOutput for X11Output {
         Ok(())
     }
 
-    fn send_key_combination(&mut self, key: &str, modifiers: &[&str]) -> platform::Result<()> {
+    fn send_key_combination(&mut self, key: &str, modifiers: &[&str]) -> output::Result<()> {
         for m in modifiers {
             let keycode = self.modifier_keycode(m);
             if keycode != 0 {
