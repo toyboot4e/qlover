@@ -145,11 +145,7 @@ impl X11Output {
             "backspace" => self.backspace_keycode,
             _ => return None,
         };
-        if kc == 0 {
-            None
-        } else {
-            Some(kc)
-        }
+        if kc == 0 { None } else { Some(kc) }
     }
 }
 
