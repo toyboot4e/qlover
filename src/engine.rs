@@ -4,10 +4,12 @@
 
 use std::sync::mpsc;
 
-use crate::protocol::plover_hid;
+use crate::{protocol::plover_hid, stroke::Stroke};
 
 pub struct Engine {
+    /// Configuration for when we trigger translation.
     mode: plover_hid::ChordMode,
+    /// Receiver.
     rx: Option<mpsc::Receiver<plover_hid::HidEvent>>,
 }
 
@@ -49,5 +51,38 @@ impl Engine {
             }
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
+    }
+
+    /// Process input events
+    pub fn poll(&mut self) -> Vec<String> {
+        // TODO: do not connect. do flat_map and fold
+        let events = match &self.rx {
+            Some(rx) => rx.try_iter().collect::<Vec<_>>(),
+            None => return Vec::new(),
+        };
+
+        let mut results = Vec::new();
+
+        for event in events {
+            match event {
+                plover_hid::HidEvent::Stroke(stroke) => {
+                    if stroke.is_empty() {
+                        continue;
+                    }
+                    if let Some(result) = self.process_stroke(stroke) {
+                        results.push("TODO".to_string());
+                    }
+                }
+                plover_hid::HidEvent::Disconnected => {
+                    // TODO: handle disconnected
+                }
+            }
+        }
+
+        results
+    }
+
+    fn process_stroke(&self, stroke: Stroke) -> Option<String> {
+        Some("TODO".to_string())
     }
 }

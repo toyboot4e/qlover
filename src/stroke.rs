@@ -96,6 +96,10 @@ impl Stroke {
     pub fn new(mask: usize) -> Self {
         Self { mask }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.mask == 0
+    }
 }
 
 /// A sequence of stenographic keyboard keys.
