@@ -29,15 +29,15 @@ impl From<x11::X11Error> for PlatformError {
     }
 }
 
-/// Keyboard output abstraction.
-pub trait KeyboardOutput {
+/// Output abstraction.
+pub trait Output {
     fn send_backspaces(&mut self, count: usize) -> Result<()>;
     fn send_string(&mut self, s: &str) -> Result<()>;
     fn send_key_combination(&mut self, key: &str, modifiers: &[&str]) -> Result<()>;
 }
 
 /// Create the keyboard output backend for the current platform.
-pub fn create_output() -> Result<Box<dyn KeyboardOutput>> {
+pub fn create_output() -> Result<Box<dyn Output>> {
     #[cfg(all(target_os = "linux", feature = "x11"))]
     {
         Ok(Box::new(x11::X11Output::new()?))

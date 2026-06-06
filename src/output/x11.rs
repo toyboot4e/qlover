@@ -14,7 +14,7 @@ use x11rb::{
     rust_connection::RustConnection,
 };
 
-use crate::output::{self, KeyboardOutput};
+use crate::output::{self, Output};
 
 pub type Result<T> = std::result::Result<T, X11Error>;
 
@@ -153,7 +153,7 @@ impl X11Output {
     }
 }
 
-impl KeyboardOutput for X11Output {
+impl Output for X11Output {
     fn send_backspaces(&mut self, count: usize) -> output::Result<()> {
         for _ in 0..count {
             self.tap_key(self.backspace_keycode, false)?;
