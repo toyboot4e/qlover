@@ -105,6 +105,8 @@ impl Stroke {
 ///
 /// Different from the original `stroke`, our `StenoSystem` does not have number key
 /// layout information, because they should be implemented as dictionary data.
+// TODO: rename to keyboard layout?
+// TODO: define mapping for each input protocol
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StenoSystem {
     /// 63 (constant), because we want to use bit flags of length `64`.

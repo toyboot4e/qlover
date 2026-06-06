@@ -1,6 +1,6 @@
 //! A stenography engine in Rust.
 
-use qlover::{output, Engine};
+use qlover::{output, Engine, EngineCommand};
 
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -9,6 +9,10 @@ fn main() {
     let mut engine = Engine::new();
     let mut output = output::create_output().unwrap();
 
+    // Test
+    let dict = serde_json::from_str(r#"{ "a": "abc"}"#).unwrap();
+    engine.dicts.stack.push(dict);
+
     loop {
         println!("connecting to a new device..");
         engine.connect_loop(&mut hid);
@@ -16,8 +20,16 @@ fn main() {
 
         loop {
             for cmd in engine.poll() {
-                // TODO: handle any command
-                output.send_string(&cmd);
+                match cmd {
+                    EngineCommand::Translated(s) => {
+                        println!("{}", s);
+                        // output.send_string(&s).unwrap();
+                    }
+                    EngineCommand::NotTranslated(s) => {
+                        println!("{}", s);
+                        // output.send_string(&s).unwrap();
+                    }
+                }
             }
         }
 

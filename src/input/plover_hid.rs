@@ -4,8 +4,6 @@ use std::time::Duration;
 
 use hidapi::HidApi;
 
-use crate::model::stroke::Stroke;
-
 // Plover HID protocol on USB HID
 const REPORT_ID: u8 = 0x50;
 
@@ -14,6 +12,10 @@ fn is_plover_hid(dev_info: &hidapi::DeviceInfo) -> bool {
     const USAGE: u16 = 0x4C56;
     dev_info.usage_page() == USAGE_PAGE && dev_info.usage() == USAGE
 }
+
+/// Bitmask of characters pressed on a steno keyboard (up to 63 keys).
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Bitmask(pub u64);
 
 /// Chord detection mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,7 +55,10 @@ pub fn spawn_hid_thread(device: hidapi::HidDevice, mode: ChordMode) -> mpsc::Rec
 /// Events from the HID thread.
 #[derive(Debug)]
 pub enum HidEvent {
-    Stroke(Stroke),
+    /// A raw stroke event. It reports which keys are pressed, but it's not validated for the
+    /// system (steno keyboard layout).
+    StrokeBits(Bitmask),
+    /// Disconnected.
     Disconnected,
 }
 
@@ -64,17 +69,18 @@ fn hid_read_loop(
     mode: ChordMode,
 ) -> hidapi::HidResult<()> {
     let mut buf = [0u8; 64];
-    let mut acc: usize = 0;
+    let mut acc: u64 = 0;
     let mut sent_first_up = false;
 
     loop {
+        // TODO: is this timeout OK?
         let n = device.read_timeout(&mut buf, 1000)?;
 
         if n < 9 || buf[0] != REPORT_ID {
             continue;
         }
 
-        let current_stroke = usize::from_be_bytes([
+        let current_stroke = u64::from_be_bytes([
             buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8],
         ]);
 
@@ -84,9 +90,9 @@ fn hid_read_loop(
                 acc |= current_stroke;
                 if current_stroke == 0 && acc != 0 {
                     // Released
-                    let stroke = Stroke::new(acc);
+                    let bits = Bitmask(acc);
                     acc = 0;
-                    if tx.send(HidEvent::Stroke(stroke)).is_err() {
+                    if tx.send(HidEvent::StrokeBits(bits)).is_err() {
                         // nobody is listening
                         return Ok(());
                     }
@@ -96,14 +102,14 @@ fn hid_read_loop(
                 if !sent_first_up {
                     // Handle release
                     if acc & !current_stroke != 0 {
-                        let stroke = Stroke::new(acc);
+                        let bits = Bitmask(acc);
                         sent_first_up = true;
-                        if tx.send(HidEvent::Stroke(stroke)).is_err() {
+                        if tx.send(HidEvent::StrokeBits(bits)).is_err() {
                             return Ok(());
                         }
                     }
                 }
-                if current_stroke & !acc != 0 {
+                if current_stroke & !acc != 0u64 {
                     sent_first_up = false;
                 }
                 // Snapshot current state
@@ -121,7 +127,7 @@ pub fn spawn_mock_hid_thread() -> mpsc::Receiver<HidEvent> {
         // Just keep the sender alive until main thread drops receiver
         loop {
             thread::sleep(Duration::from_secs(1));
-            if tx.send(HidEvent::Stroke(Stroke::new(0))).is_err() {
+            if tx.send(HidEvent::StrokeBits(Bitmask(0))).is_err() {
                 break;
             }
         }

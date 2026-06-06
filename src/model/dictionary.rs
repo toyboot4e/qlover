@@ -108,24 +108,21 @@ impl StenoDictionary {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct StenoDictionaryStack {
-    //
-    dicts: Vec<StenoDictionary>,
+/// A stack of dictionaries.
+#[derive(Debug, Clone, Default)]
+pub struct Dictionaries {
+    /// Stack of dictionaries.
+    pub stack: Vec<StenoDictionary>,
 }
 
-impl StenoDictionaryStack {
-    pub fn new(dicts: Vec<StenoDictionary>) -> Self {
-        Self { dicts }
-    }
-
+impl Dictionaries {
     /// Looks up an output for the outline.
     pub fn get(&self, outline: &Outline) -> Option<&Output> {
-        self.dicts.iter().find_map(|d| d.get(outline))
+        self.stack.iter().find_map(|d| d.get(outline))
     }
 
     /// Looks up outlines for the output.
     pub fn rev_get(&self, output: &Output) -> Option<&Vec<Outline>> {
-        self.dicts.iter().find_map(|d| d.rev_get(output))
+        self.stack.iter().find_map(|d| d.rev_get(output))
     }
 }
