@@ -1,4 +1,4 @@
-use crate::{
+use crate::model::{
     stroke::Stroke,
     translation::{Translation, Translator},
 };

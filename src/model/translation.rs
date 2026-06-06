@@ -5,7 +5,7 @@
 #[cfg(test)]
 mod test;
 
-use crate::stroke::Stroke;
+use crate::model::stroke::Stroke;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Translation {

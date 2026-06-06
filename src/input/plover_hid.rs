@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use hidapi::HidApi;
 
-use crate::stroke::Stroke;
+use crate::model::stroke::Stroke;
 
 // Plover HID protocol on USB HID
 const REPORT_ID: u8 = 0x50;

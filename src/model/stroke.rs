@@ -8,10 +8,9 @@
 #[cfg(test)]
 mod test;
 
-use std::cmp::Ordering;
-use std::fmt;
-use std::ops;
 use thiserror::Error;
+
+use std::{cmp::Ordering, fmt, ops};
 
 /// `None` | `Left` | `Right`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -26,7 +25,7 @@ pub enum KeySide {
 /// # Examples
 ///
 /// ```
-/// use qlover::stroke::{KeySide, LetterWithSide};
+/// use qlover::model::stroke::{KeySide, LetterWithSide};
 /// assert_eq!(
 ///     LetterWithSide::parse("a-"),
 ///     Some(LetterWithSide {
@@ -213,7 +212,7 @@ impl StenoSystem {
     /// ```
     ///
     /// ```
-    /// use qlover::stroke::{LetterWithSide, StenoSystem, Stroke};
+    /// use qlover::model::stroke::{LetterWithSide, StenoSystem, Stroke};
     /// let keys = "A- B- C -D -E"
     ///     .split_whitespace()
     ///     .map(LetterWithSide::parse)
@@ -322,7 +321,7 @@ impl StenoSystem {
 ///     -E -U
 ///     -F -R -P -B -L -G -T -S -D -Z
 /// "##;
-/// let _ = qlover::stroke::parse_keys(s);
+/// let _ = qlover::model::stroke::parse_keys(s);
 /// ```
 pub fn parse_keys(s: &str) -> Option<Vec<LetterWithSide>> {
     s.split_whitespace()
@@ -349,7 +348,7 @@ pub fn parse_keys(s: &str) -> Option<Vec<LetterWithSide>> {
 /// // A-, O-, *, -E, -U are the implicit hyphen keys (unique keys where the side is deterministic):
 /// let r = 8..13;
 ///
-/// let _ = qlover::stroke::parse_system(s, Some(8..13));
+/// let _ = qlover::model::stroke::parse_system(s, Some(8..13));
 /// ```
 pub fn parse_system(
     s: &str,

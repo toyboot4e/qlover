@@ -1,7 +1,8 @@
-use crate::dictionary::{Outline, Output, StenoDictionary};
 use proptest::prelude::*;
 use rustc_hash::FxHashMap;
 use test_strategy::proptest;
+
+use crate::model::dictionary::{Outline, Output, StenoDictionary};
 
 fn stroke_strategy() -> impl Strategy<Value = String> {
     prop::string::string_regex("[A-Z]+").unwrap()

@@ -1,4 +1,4 @@
-use crate::stroke::{self, KeySide, LetterWithSide, StenoSystem};
+use crate::model::stroke::{self, KeySide, LetterWithSide, StenoSystem};
 
 fn english_system_keys() -> Vec<LetterWithSide> {
     let s = r##"

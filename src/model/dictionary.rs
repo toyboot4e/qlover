@@ -7,6 +7,7 @@ mod test;
 
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 use std::fmt;
 
 /// String notation of an outline.
