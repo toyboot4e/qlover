@@ -9,6 +9,14 @@ pub mod x11;
 /// Alias for [`std::result::Result`] with [`PlatformError`] as the error type.
 pub type Result<T> = std::result::Result<T, PlatformError>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Modifier {
+    Ctrl,
+    Alt,
+    Shift,
+    Super,
+}
+
 /// Error produced by the platform output backend.
 #[derive(Debug, Error)]
 pub enum PlatformError {
@@ -33,7 +41,7 @@ impl From<x11::X11Error> for PlatformError {
 pub trait Output {
     fn send_backspaces(&mut self, count: usize) -> Result<()>;
     fn send_string(&mut self, s: &str) -> Result<()>;
-    fn send_key_combination(&mut self, key: &str, modifiers: &[&str]) -> Result<()>;
+    fn send_key_combination(&mut self, key: &str, mods: &[Modifier]) -> Result<()>;
 }
 
 /// Create the keyboard output backend for the current platform.

@@ -1,4 +1,7 @@
 //! X11 output support.
+//!
+//! - keycode (u8): physical key on the keyboard.
+//! - keysym (u32): actually emitted key.
 
 use std::collections::HashMap;
 
@@ -14,7 +17,7 @@ use x11rb::{
     rust_connection::RustConnection,
 };
 
-use crate::output::{self, Output};
+use crate::output::{self, Modifier, Output};
 
 pub type Result<T> = std::result::Result<T, X11Error>;
 
@@ -33,11 +36,13 @@ pub enum X11Error {
 pub struct X11Output {
     conn: RustConnection,
     char_to_keycode: HashMap<char, (u8, bool)>,
-    backspace_keycode: u8,
+    // modifiers:
     shift_keycode: u8,
     ctrl_keycode: u8,
     alt_keycode: u8,
     super_keycode: u8,
+    // special (non-character) keys:
+    backspace_keycode: u8,
     return_keycode: u8,
     tab_keycode: u8,
     escape_keycode: u8,
@@ -48,41 +53,47 @@ impl X11Output {
         let (conn, _screen_num) = RustConnection::connect(None)?;
 
         let setup = conn.setup();
-        let min_keycode = setup.min_keycode;
-        let max_keycode = setup.max_keycode;
+        let min_keycode: u8 = setup.min_keycode;
+        let max_keycode: u8 = setup.max_keycode;
 
+        // The X server's key mapping table
         let mapping = conn
             .get_keyboard_mapping(min_keycode, max_keycode - min_keycode + 1)?
             .reply()?;
 
+        // each keycode has multiple _slots_ with different modifiers:
         let keysyms_per_keycode = mapping.keysyms_per_keycode as usize;
         let keysyms = &mapping.keysyms;
 
         let mut char_to_keycode = HashMap::new();
 
+        // char -> keycode
         for keycode in min_keycode..=max_keycode {
-            let idx = (keycode - min_keycode) as usize * keysyms_per_keycode;
+            let keysym_idx = (keycode - min_keycode) as usize * keysyms_per_keycode;
 
-            if idx < keysyms.len() {
-                let keysym = keysyms[idx];
+            // slot 0: no modifiers
+            if keysym_idx < keysyms.len() {
+                let keysym = keysyms[keysym_idx];
                 if let Some(ch) = keysym_to_char(keysym) {
                     char_to_keycode.entry(ch).or_insert((keycode, false));
                 }
             }
 
-            if idx + 1 < keysyms.len() {
-                let keysym = keysyms[idx + 1];
+            // slot 1: shift
+            if keysym_idx + 1 < keysyms.len() {
+                let keysym = keysyms[keysym_idx + 1];
                 if let Some(ch) = keysym_to_char(keysym) {
                     char_to_keycode.entry(ch).or_insert((keycode, true));
                 }
             }
         }
 
-        let find_keycode = |target_keysym: u32| -> u8 {
+        // keysym -> keycode
+        let find_keycode = |keysym: u32| -> u8 {
             for keycode in min_keycode..=max_keycode {
                 let idx = (keycode - min_keycode) as usize * keysyms_per_keycode;
                 for offset in 0..keysyms_per_keycode {
-                    if idx + offset < keysyms.len() && keysyms[idx + offset] == target_keysym {
+                    if idx + offset < keysyms.len() && keysyms[idx + offset] == keysym {
                         return keycode;
                     }
                 }
@@ -91,16 +102,18 @@ impl X11Output {
         };
 
         Ok(X11Output {
-            backspace_keycode: find_keycode(0xFF08),
+            conn,
+            char_to_keycode,
+            // modifiers:
             shift_keycode: find_keycode(0xFFE1),
             ctrl_keycode: find_keycode(0xFFE3),
             alt_keycode: find_keycode(0xFFE9),
             super_keycode: find_keycode(0xFFEB),
+            // special (non-character) keys:
+            backspace_keycode: find_keycode(0xFF08),
             return_keycode: find_keycode(0xFF0D),
             tab_keycode: find_keycode(0xFF09),
             escape_keycode: find_keycode(0xFF1B),
-            conn,
-            char_to_keycode,
         })
     }
 
@@ -127,13 +140,12 @@ impl X11Output {
         Ok(())
     }
 
-    fn modifier_keycode(&self, name: &str) -> u8 {
-        match name {
-            "ctrl" | "control" => self.ctrl_keycode,
-            "alt" => self.alt_keycode,
-            "shift" => self.shift_keycode,
-            "super" | "win" => self.super_keycode,
-            _ => 0,
+    fn modifier_keycode(&self, modifier: Modifier) -> u8 {
+        match modifier {
+            Modifier::Ctrl => self.ctrl_keycode,
+            Modifier::Alt => self.alt_keycode,
+            Modifier::Shift => self.shift_keycode,
+            Modifier::Super => self.super_keycode,
         }
     }
 
@@ -174,9 +186,8 @@ impl Output for X11Output {
         Ok(())
     }
 
-    fn send_key_combination(&mut self, key: &str, modifiers: &[&str]) -> output::Result<()> {
-        for m in modifiers {
-            let keycode = self.modifier_keycode(m);
+    fn send_key_combination(&mut self, key: &str, mods: &[Modifier]) -> output::Result<()> {
+        for keycode in mods.iter().map(|m| self.modifier_keycode(*m)) {
             if keycode != 0 {
                 self.x11_key_event(keycode, true)?;
             }
@@ -200,8 +211,7 @@ impl Output for X11Output {
             }
         }
 
-        for m in modifiers.iter().rev() {
-            let keycode = self.modifier_keycode(m);
+        for keycode in mods.iter().rev().map(|m| self.modifier_keycode(*m)) {
             if keycode != 0 {
                 self.x11_key_event(keycode, false)?;
             }
