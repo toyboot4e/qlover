@@ -13,6 +13,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
+bitflags = "2.13.0"
 env_logger = "0.11.10"
 hidapi = "2.6.6"
 log = "0.4.29"

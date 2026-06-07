@@ -16,7 +16,7 @@ use x11rb::{
     rust_connection::RustConnection,
 };
 
-use crate::output::{self, Key, Modifier, Output};
+use crate::output::{self, Key, Modifiers, Output};
 
 pub type Result<T> = std::result::Result<T, X11Error>;
 
@@ -127,25 +127,38 @@ impl X11Output {
         Ok(())
     }
 
-    fn tap_key(&self, keycode: u8, shift: bool) -> Result<()> {
-        if shift {
-            self.x11_key_event(self.shift_keycode, true)?;
+    fn keycode_for_modifier_bit(&self, bit: Modifiers) -> u8 {
+        if bit == Modifiers::CTRL {
+            self.ctrl_keycode
+        } else if bit == Modifiers::ALT {
+            self.alt_keycode
+        } else if bit == Modifiers::SHIFT {
+            self.shift_keycode
+        } else if bit == Modifiers::SUPER {
+            self.super_keycode
+        } else {
+            0
         }
-        self.x11_key_event(keycode, true)?;
-        self.x11_key_event(keycode, false)?;
-        if shift {
-            self.x11_key_event(self.shift_keycode, false)?;
-        }
-        Ok(())
     }
 
-    fn keycode_for_modifier(&self, modifier: Modifier) -> u8 {
-        match modifier {
-            Modifier::Ctrl => self.ctrl_keycode,
-            Modifier::Alt => self.alt_keycode,
-            Modifier::Shift => self.shift_keycode,
-            Modifier::Super => self.super_keycode,
+    fn on_modifier_change(&self, from: Modifiers, to: Modifiers) -> Result<()> {
+        // release
+        for bit in (from - to).iter() {
+            let kc = self.keycode_for_modifier_bit(bit);
+            if kc != 0 {
+                self.x11_key_event(kc, false)?;
+            }
         }
+
+        // press
+        for bit in (to - from).iter() {
+            let kc = self.keycode_for_modifier_bit(bit);
+            if kc != 0 {
+                self.x11_key_event(kc, true)?;
+            }
+        }
+
+        Ok(())
     }
 
     fn keycode_for_key(&self, key: Key) -> Option<(u8, bool)> {
@@ -161,36 +174,22 @@ impl X11Output {
 }
 
 impl Output for X11Output {
-    fn send_keys(&mut self, keys: &[Key], mods: &[Modifier]) -> output::Result<()> {
-        // We will handle Shift per key
-        let all_shift = mods.iter().any(|m| *m == Modifier::Shift);
-
-        // press modifiers other than shift:
-        for m in mods.iter().cloned() {
-            if m != Modifier::Shift
-                && let keycode = self.keycode_for_modifier(m)
-                && keycode != 0
-            {
+    fn send_keys(&mut self, strokes: &[(Key, Modifiers)]) -> output::Result<()> {
+        let held = strokes
+            .iter()
+            .cloned()
+            .try_fold(Modifiers::empty(), |held, (key, mods)| {
+                let Some((keycode, shift)) = self.keycode_for_key(key) else {
+                    return Ok(held);
+                };
+                let mods = if shift { mods | Modifiers::SHIFT } else { mods };
+                self.on_modifier_change(held, mods)?;
                 self.x11_key_event(keycode, true)?;
-            }
-        }
+                self.x11_key_event(keycode, false)?;
+                Ok::<_, X11Error>(mods)
+            })?;
 
-        for key in keys {
-            if let Some((keycode, shift)) = self.keycode_for_key(*key) {
-                self.tap_key(keycode, all_shift || shift)?;
-            }
-        }
-
-        // release modifiers other than shift:
-        for m in mods.iter().rev().cloned() {
-            if m != Modifier::Shift
-                && let keycode = self.keycode_for_modifier(m)
-                && keycode != 0
-            {
-                self.x11_key_event(keycode, true)?;
-            }
-        }
-
+        self.on_modifier_change(held, Modifiers::empty())?;
         self.conn.flush().map_err(X11Error::from)?;
         Ok(())
     }
