@@ -59,33 +59,35 @@ impl X11Output {
         let mapping = conn
             .get_keyboard_mapping(min_keycode, max_keycode - min_keycode + 1)?
             .reply()?;
-
-        // each keycode has multiple _slots_ with different modifiers:
-        let keysyms_per_keycode = mapping.keysyms_per_keycode as usize;
         let keysyms = &mapping.keysyms;
+        let keysyms_per_keycode = mapping.keysyms_per_keycode as usize;
 
-        let mut char_to_keycode = HashMap::new();
+        let char_to_keycode = {
+            let mut char_to_keycode = HashMap::new();
 
-        // char -> keycode
-        for keycode in min_keycode..=max_keycode {
-            let keysym_idx = (keycode - min_keycode) as usize * keysyms_per_keycode;
+            // each keycode has multiple _slots_ with different modifiers:
+            for keycode in min_keycode..=max_keycode {
+                let keysym_idx = (keycode - min_keycode) as usize * keysyms_per_keycode;
 
-            // slot 0: no modifiers
-            if keysym_idx < keysyms.len() {
-                let keysym = keysyms[keysym_idx];
-                if let Some(ch) = keysym_to_char(keysym) {
-                    char_to_keycode.entry(ch).or_insert((keycode, false));
+                // slot 0: no modifiers
+                if keysym_idx < keysyms.len() {
+                    let keysym = keysyms[keysym_idx];
+                    if let Some(ch) = keysym_to_char(keysym) {
+                        char_to_keycode.entry(ch).or_insert((keycode, false));
+                    }
+                }
+
+                // slot 1: shift
+                if keysym_idx + 1 < keysyms.len() {
+                    let keysym = keysyms[keysym_idx + 1];
+                    if let Some(ch) = keysym_to_char(keysym) {
+                        char_to_keycode.entry(ch).or_insert((keycode, true));
+                    }
                 }
             }
 
-            // slot 1: shift
-            if keysym_idx + 1 < keysyms.len() {
-                let keysym = keysyms[keysym_idx + 1];
-                if let Some(ch) = keysym_to_char(keysym) {
-                    char_to_keycode.entry(ch).or_insert((keycode, true));
-                }
-            }
-        }
+            char_to_keycode
+        };
 
         // keysym -> keycode
         let find_keycode = |keysym: u32| -> u8 {
