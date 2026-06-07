@@ -1,5 +1,7 @@
 //! A stenography engine in Rust.
 //!
+//! Most of the content was learnt from the [Plover] engine.
+//!
 //! Throughout this library, we denote time complexity of functions with [big O notation].
 //!
 //! [big O notation]: https://en.wikipedia.org/wiki/Big_O_notation

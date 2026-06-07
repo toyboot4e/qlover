@@ -1,6 +1,6 @@
 //! A stenography engine in Rust.
 
-use qlover::{output, Engine, EngineCommand};
+use qlover::{Engine, EngineCommand, output};
 
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
