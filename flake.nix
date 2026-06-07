@@ -4,6 +4,7 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     treefmt-nix.url = "github:numtide/treefmt-nix";
+    crane.url = "github:ipetkov/crane";
   };
 
   outputs =
@@ -11,6 +12,7 @@
       self,
       nixpkgs,
       treefmt-nix,
+      crane,
       ...
     }:
     let
@@ -29,8 +31,6 @@
         }
       );
 
-      cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
-
       buildInputsFor = forAllSystems (
         system:
         let
@@ -46,27 +46,42 @@
         ]
       );
 
-      qloverFor = forAllSystems (
+      craneLibFor = forAllSystems (system: crane.mkLib pkgsFor.${system});
+
+      commonArgsFor = forAllSystems (
         system:
         let
           pkgs = pkgsFor.${system};
+          craneLib = craneLibFor.${system};
         in
-        pkgs.rustPlatform.buildRustPackage {
-          pname = cargoToml.package.name;
-          version = cargoToml.package.version;
-          src = pkgs.lib.cleanSource ./.;
-          cargoLock.lockFile = ./Cargo.lock;
+        {
+          src = craneLib.cleanCargoSource ./.;
+          strictDeps = true;
           nativeBuildInputs = [ pkgs.pkg-config ];
           buildInputs = buildInputsFor.${system};
-          # Tests need HID devices / X server.
-          doCheck = false;
-
-          meta = {
-            description = "A stenography engine in Rust";
-            mainProgram = "qlover";
-            platforms = pkgs.lib.platforms.linux;
-          };
         }
+      );
+
+      cargoArtifactsFor = forAllSystems (
+        system: craneLibFor.${system}.buildDepsOnly commonArgsFor.${system}
+      );
+
+      qloverFor = forAllSystems (
+        system:
+        craneLibFor.${system}.buildPackage (
+          commonArgsFor.${system}
+          // {
+            cargoArtifacts = cargoArtifactsFor.${system};
+            # Tests need HID devices / X server.
+            doCheck = false;
+
+            meta = {
+              description = "A stenography engine in Rust";
+              mainProgram = "qlover";
+              platforms = pkgsFor.${system}.lib.platforms.linux;
+            };
+          }
+        )
       );
     in
     {
@@ -85,7 +100,7 @@
       });
 
       devShells = forAllSystems (system: {
-        default = pkgsFor.${system}.mkShell {
+        default = craneLibFor.${system}.devShell {
           inputsFrom = [ qloverFor.${system} ];
           LD_LIBRARY_PATH = pkgsFor.${system}.lib.makeLibraryPath buildInputsFor.${system};
         };
