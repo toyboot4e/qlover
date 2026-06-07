@@ -60,6 +60,12 @@
           buildInputs = buildInputsFor.${system};
           # Tests need HID devices / X server.
           doCheck = false;
+
+          meta = {
+            description = "A stenography engine in Rust";
+            mainProgram = "qlover";
+            platforms = pkgs.lib.platforms.linux;
+          };
         }
       );
     in
@@ -73,7 +79,8 @@
       apps = forAllSystems (system: {
         default = {
           type = "app";
-          program = "${qloverFor.${system}}/bin/qlover";
+          program = pkgsFor.${system}.lib.getExe qloverFor.${system};
+          meta = qloverFor.${system}.meta;
         };
       });
 
