@@ -155,7 +155,6 @@ impl X11Output {
             Key::Tab => self.tab_keycode,
             Key::Escape => self.escape_keycode,
             Key::Char(c) => return self.char_to_keycode.get(&c).cloned(),
-            _ => return None,
         };
         Some((keycode, false))
     }
@@ -163,22 +162,32 @@ impl X11Output {
 
 impl Output for X11Output {
     fn send_keys(&mut self, keys: &[Key], mods: &[Modifier]) -> output::Result<()> {
-        // TODO: handle shift separately?
-        for keycode in mods.iter().map(|m| self.keycode_for_modifier(*m)) {
-            if keycode != 0 {
+        // We will handle Shift per key
+        let all_shift = mods.iter().any(|m| *m == Modifier::Shift);
+
+        // press modifiers other than shift:
+        for m in mods.iter().cloned() {
+            if m != Modifier::Shift
+                && let keycode = self.keycode_for_modifier(m)
+                && keycode != 0
+            {
                 self.x11_key_event(keycode, true)?;
             }
         }
 
         for key in keys {
             if let Some((keycode, shift)) = self.keycode_for_key(*key) {
-                self.tap_key(keycode, shift)?;
+                self.tap_key(keycode, all_shift || shift)?;
             }
         }
 
-        for keycode in mods.iter().rev().map(|m| self.keycode_for_modifier(*m)) {
-            if keycode != 0 {
-                self.x11_key_event(keycode, false)?;
+        // release modifiers other than shift:
+        for m in mods.iter().rev().cloned() {
+            if m != Modifier::Shift
+                && let keycode = self.keycode_for_modifier(m)
+                && keycode != 0
+            {
+                self.x11_key_event(keycode, true)?;
             }
         }
 
