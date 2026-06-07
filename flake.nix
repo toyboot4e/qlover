@@ -1,5 +1,5 @@
 {
-  description = "A basic flake with a shell";
+  description = "A stenography engine in Rust";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -9,6 +9,7 @@
 
   outputs =
     {
+      self,
       nixpkgs,
       flake-utils,
       treefmt-nix,
@@ -17,9 +18,8 @@
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = import nixpkgs {
-          inherit system;
-        };
+        pkgs = import nixpkgs { inherit system; };
+
         treefmtEval = treefmt-nix.lib.evalModule pkgs {
           projectRootFile = "flake.nix";
           programs = {
@@ -27,43 +27,53 @@
             rustfmt.enable = true;
           };
         };
+
+        nativeBuildInputs = [ pkgs.pkg-config ];
+
+        buildInputs =
+          [
+            pkgs.udev
+            pkgs.libevdev
+          ]
+          ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+            pkgs.xorg.libX11
+            pkgs.xorg.libXtst
+          ];
+
+        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+
+        qlover = pkgs.rustPlatform.buildRustPackage {
+          pname = cargoToml.package.name;
+          version = cargoToml.package.version;
+          src = pkgs.lib.cleanSource ./.;
+          cargoLock.lockFile = ./Cargo.lock;
+          inherit nativeBuildInputs buildInputs;
+          # Tests need HID devices / X server.
+          doCheck = false;
+        };
       in
       {
-        devShells.default =
-          with pkgs;
-          mkShell {
-            nativeBuildInputs = [ pkgs.pkg-config ];
-            buildInputs =
-              [
-                pkgs.udev
-                pkgs.libevdev
-              ]
-              ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
-                pkgs.xorg.libX11
-                pkgs.xorg.libXtst
-              ];
+        packages = {
+          default = qlover;
+          qlover = qlover;
+          treefmt = treefmtEval.config.build.wrapper;
+        };
 
-            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (
-              [
-                pkgs.udev
-                pkgs.libevdev
-              ]
-              ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
-                pkgs.xorg.libX11
-                pkgs.xorg.libXtst
-              ]
-            );
-          };
+        apps.default = {
+          type = "app";
+          program = "${qlover}/bin/qlover";
+        };
+
+        devShells.default = pkgs.mkShell {
+          inputsFrom = [ qlover ];
+
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
+        };
 
         # nix fmt
         formatter = treefmtEval.config.build.wrapper;
 
-        # nix run .#treefmt
-        packages.treefmt = treefmtEval.config.build.wrapper;
-
-        # FIXME:
-        # # nix flake check
-        # checks.treefmt = treefmtEval.config.build.check;
+        checks.treefmt = treefmtEval.config.build.check self;
       }
     );
 }
