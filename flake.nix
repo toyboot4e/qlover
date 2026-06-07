@@ -3,7 +3,6 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
     treefmt-nix.url = "github:numtide/treefmt-nix";
   };
 
@@ -11,69 +10,84 @@
     {
       self,
       nixpkgs,
-      flake-utils,
       treefmt-nix,
       ...
     }:
-    flake-utils.lib.eachDefaultSystem (
-      system:
-      let
-        pkgs = import nixpkgs { inherit system; };
+    let
+      forAllSystems = nixpkgs.lib.genAttrs nixpkgs.lib.systems.flakeExposed;
 
-        treefmtEval = treefmt-nix.lib.evalModule pkgs {
+      pkgsFor = forAllSystems (system: import nixpkgs { inherit system; });
+
+      treefmtFor = forAllSystems (
+        system:
+        treefmt-nix.lib.evalModule pkgsFor.${system} {
           projectRootFile = "flake.nix";
           programs = {
             nixfmt.enable = true;
             rustfmt.enable = true;
           };
-        };
+        }
+      );
 
-        nativeBuildInputs = [ pkgs.pkg-config ];
+      cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
 
-        buildInputs =
-          [
-            pkgs.udev
-            pkgs.libevdev
-          ]
-          ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
-            pkgs.xorg.libX11
-            pkgs.xorg.libXtst
-          ];
+      buildInputsFor = forAllSystems (
+        system:
+        let
+          pkgs = pkgsFor.${system};
+        in
+        [
+          pkgs.udev
+          pkgs.libevdev
+        ]
+        ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+          pkgs.xorg.libX11
+          pkgs.xorg.libXtst
+        ]
+      );
 
-        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
-
-        qlover = pkgs.rustPlatform.buildRustPackage {
+      qloverFor = forAllSystems (
+        system:
+        let
+          pkgs = pkgsFor.${system};
+        in
+        pkgs.rustPlatform.buildRustPackage {
           pname = cargoToml.package.name;
           version = cargoToml.package.version;
           src = pkgs.lib.cleanSource ./.;
           cargoLock.lockFile = ./Cargo.lock;
-          inherit nativeBuildInputs buildInputs;
+          nativeBuildInputs = [ pkgs.pkg-config ];
+          buildInputs = buildInputsFor.${system};
           # Tests need HID devices / X server.
           doCheck = false;
-        };
-      in
-      {
-        packages = {
-          default = qlover;
-          qlover = qlover;
-          treefmt = treefmtEval.config.build.wrapper;
-        };
+        }
+      );
+    in
+    {
+      packages = forAllSystems (system: {
+        default = qloverFor.${system};
+        qlover = qloverFor.${system};
+        treefmt = treefmtFor.${system}.config.build.wrapper;
+      });
 
-        apps.default = {
+      apps = forAllSystems (system: {
+        default = {
           type = "app";
-          program = "${qlover}/bin/qlover";
+          program = "${qloverFor.${system}}/bin/qlover";
         };
+      });
 
-        devShells.default = pkgs.mkShell {
-          inputsFrom = [ qlover ];
-
-          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
+      devShells = forAllSystems (system: {
+        default = pkgsFor.${system}.mkShell {
+          inputsFrom = [ qloverFor.${system} ];
+          LD_LIBRARY_PATH = pkgsFor.${system}.lib.makeLibraryPath buildInputsFor.${system};
         };
+      });
 
-        # nix fmt
-        formatter = treefmtEval.config.build.wrapper;
+      formatter = forAllSystems (system: treefmtFor.${system}.config.build.wrapper);
 
-        checks.treefmt = treefmtEval.config.build.check self;
-      }
-    );
+      checks = forAllSystems (system: {
+        treefmt = treefmtFor.${system}.config.build.check self;
+      });
+    };
 }
