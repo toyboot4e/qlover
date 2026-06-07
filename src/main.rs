@@ -7,7 +7,7 @@ fn main() {
 
     let mut hid = hidapi::HidApi::new().unwrap_or_else(|e| panic!("unable to initialize HID: {e}"));
     let mut engine = Engine::new();
-    let mut output = output::new().unwrap();
+    let _output = output::new().unwrap();
 
     // Test
     let dict = serde_json::from_str(r#"{ "a": "abc"}"#).unwrap();
@@ -32,8 +32,5 @@ fn main() {
                 }
             }
         }
-
-        // TODO: handle input
-        break;
     }
 }

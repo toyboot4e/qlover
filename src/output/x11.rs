@@ -197,7 +197,7 @@ impl Output for X11Output {
     }
 }
 
-/// Convert an X11 keysym to a Unicode char.
+/// Converts an X11 keysym to a Unicode char.
 fn keysym_to_char(keysym: u32) -> Option<char> {
     match keysym {
         0 => None,
