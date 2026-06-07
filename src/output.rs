@@ -45,7 +45,8 @@ pub trait Output {
 }
 
 /// Create the keyboard output backend for the current platform.
-pub fn create_output() -> Result<Box<dyn Output>> {
+pub fn new() -> Result<Box<dyn Output>> {
+    // TODO: auto-detect X11 and Wayland at runtime
     #[cfg(all(target_os = "linux", feature = "x11"))]
     {
         Ok(Box::new(x11::X11Output::new()?))
