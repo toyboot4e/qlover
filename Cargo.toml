@@ -26,5 +26,5 @@ thiserror = "2.0.12"
 x11rb = { version = "0.13.2", optional = true, features = ["xtest"] }
 
 [dev-dependencies]
-proptest = "1"
-test-strategy = "0.4"
+proptest = "1.11.0"
+test-strategy = "0.4.5"
