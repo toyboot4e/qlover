@@ -5,7 +5,6 @@
 
 use std::collections::HashMap;
 
-use log::debug;
 use thiserror::Error;
 use x11rb::{
     connection::Connection,
@@ -17,7 +16,7 @@ use x11rb::{
     rust_connection::RustConnection,
 };
 
-use crate::output::{self, Modifier, Output};
+use crate::output::{self, Key, Modifier, Output};
 
 pub type Result<T> = std::result::Result<T, X11Error>;
 
@@ -117,6 +116,17 @@ impl X11Output {
         })
     }
 
+    fn x11_key_event(&self, keycode: u8, press: bool) -> Result<()> {
+        let event_type = if press {
+            xproto::KEY_PRESS_EVENT
+        } else {
+            xproto::KEY_RELEASE_EVENT
+        };
+        self.conn
+            .xtest_fake_input(event_type, keycode, 0, x11rb::CURRENT_TIME, 0, 0, 0)?;
+        Ok(())
+    }
+
     fn tap_key(&self, keycode: u8, shift: bool) -> Result<()> {
         if shift {
             self.x11_key_event(self.shift_keycode, true)?;
@@ -129,18 +139,7 @@ impl X11Output {
         Ok(())
     }
 
-    fn x11_key_event(&self, keycode: u8, press: bool) -> Result<()> {
-        let event_type = if press {
-            xproto::KEY_PRESS_EVENT
-        } else {
-            xproto::KEY_RELEASE_EVENT
-        };
-        self.conn
-            .xtest_fake_input(event_type, keycode, 0, x11rb::CURRENT_TIME, 0, 0, 0)?;
-        Ok(())
-    }
-
-    fn modifier_keycode(&self, modifier: Modifier) -> u8 {
+    fn keycode_for_modifier(&self, modifier: Modifier) -> u8 {
         match modifier {
             Modifier::Ctrl => self.ctrl_keycode,
             Modifier::Alt => self.alt_keycode,
@@ -149,69 +148,35 @@ impl X11Output {
         }
     }
 
-    fn named_keycode(&self, name: &str) -> Option<u8> {
-        let kc = match name {
-            "return" | "enter" => self.return_keycode,
-            "tab" => self.tab_keycode,
-            "escape" | "esc" => self.escape_keycode,
-            "backspace" => self.backspace_keycode,
+    fn keycode_for_key(&self, key: Key) -> Option<(u8, bool)> {
+        let keycode = match key {
+            Key::Backspace => self.backspace_keycode,
+            Key::Return => self.return_keycode,
+            Key::Tab => self.tab_keycode,
+            Key::Escape => self.escape_keycode,
+            Key::Char(c) => return self.char_to_keycode.get(&c).cloned(),
             _ => return None,
         };
-        if kc == 0 {
-            None
-        } else {
-            Some(kc)
-        }
+        Some((keycode, false))
     }
 }
 
 impl Output for X11Output {
-    fn send_backspaces(&mut self, count: usize) -> output::Result<()> {
-        for _ in 0..count {
-            self.tap_key(self.backspace_keycode, false)?;
-        }
-        self.conn.flush().map_err(X11Error::from)?;
-        Ok(())
-    }
-
-    fn send_string(&mut self, s: &str) -> output::Result<()> {
-        for ch in s.chars() {
-            if let Some(&(keycode, shift)) = self.char_to_keycode.get(&ch) {
-                self.tap_key(keycode, shift)?;
-            } else {
-                debug!("No keycode for character: {:?}", ch);
-            }
-        }
-        self.conn.flush().map_err(X11Error::from)?;
-        Ok(())
-    }
-
-    fn send_key_combination(&mut self, key: &str, mods: &[Modifier]) -> output::Result<()> {
-        for keycode in mods.iter().map(|m| self.modifier_keycode(*m)) {
+    fn send_keys(&mut self, keys: &[Key], mods: &[Modifier]) -> output::Result<()> {
+        // TODO: handle shift separately?
+        for keycode in mods.iter().map(|m| self.keycode_for_modifier(*m)) {
             if keycode != 0 {
                 self.x11_key_event(keycode, true)?;
             }
         }
 
-        if let Some(keycode) = self.named_keycode(key) {
-            self.x11_key_event(keycode, true)?;
-            self.x11_key_event(keycode, false)?;
-        } else if let Some(ch) = key.chars().next() {
-            if key.chars().count() == 1 {
-                if let Some(&(keycode, shift)) = self.char_to_keycode.get(&ch) {
-                    if shift {
-                        self.x11_key_event(self.shift_keycode, true)?;
-                    }
-                    self.x11_key_event(keycode, true)?;
-                    self.x11_key_event(keycode, false)?;
-                    if shift {
-                        self.x11_key_event(self.shift_keycode, false)?;
-                    }
-                }
+        for key in keys {
+            if let Some((keycode, shift)) = self.keycode_for_key(*key) {
+                self.tap_key(keycode, shift)?;
             }
         }
 
-        for keycode in mods.iter().rev().map(|m| self.modifier_keycode(*m)) {
+        for keycode in mods.iter().rev().map(|m| self.keycode_for_modifier(*m)) {
             if keycode != 0 {
                 self.x11_key_event(keycode, false)?;
             }

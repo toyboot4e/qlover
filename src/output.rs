@@ -2,6 +2,7 @@
 
 use thiserror::Error;
 
+// TODO: show every platform in `cargo doc`
 #[cfg(all(target_os = "linux"))]
 // #[cfg_attr(docsrs, doc(cfg(feature = "x11")))]
 pub mod x11;
@@ -9,12 +10,23 @@ pub mod x11;
 /// Alias for [`std::result::Result`] with [`PlatformError`] as the error type.
 pub type Result<T> = std::result::Result<T, PlatformError>;
 
+/// Modifier keys.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Modifier {
     Ctrl,
     Alt,
     Shift,
     Super,
+}
+
+/// Non-modifier keys.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Key {
+    Backspace,
+    Return,
+    Tab,
+    Escape,
+    Char(char),
 }
 
 /// Error produced by the platform output backend.
@@ -38,10 +50,9 @@ impl From<x11::X11Error> for PlatformError {
 }
 
 /// Output abstraction.
+// TODO: the interface is not so good
 pub trait Output {
-    fn send_backspaces(&mut self, count: usize) -> Result<()>;
-    fn send_string(&mut self, s: &str) -> Result<()>;
-    fn send_key_combination(&mut self, key: &str, mods: &[Modifier]) -> Result<()>;
+    fn send_keys(&mut self, keys: &[Key], mods: &[Modifier]) -> Result<()>;
 }
 
 /// Create the keyboard output backend for the current platform.
